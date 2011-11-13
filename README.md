@@ -87,10 +87,10 @@ server...?
 
 Ergo, Ducky.
 
->   Littlefoot: (*sniffing the air*) "Can you smell something?"
->   Petrie: "I-I-I-I smell... I smell... I SMELL... hmm. Ducky."
->   Ducky: "You smell me?!" (*giggles*)
->   -- *The Land Before Time*
+>   Littlefoot: (*sniffing the air*) "Can you smell something?"  
+>   Petrie: "I-I-I-I smell... I smell... I SMELL... hmm. Ducky."  
+>   Ducky: "You smell me?!" (*giggles*)  
+>   -- *The Land Before Time*  
 
 # License
 
