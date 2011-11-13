@@ -104,3 +104,6 @@ you may read online at:
 This means that you may copy, distribute, modify, and use my code without 
 any fear of lawsuits from me. It also means that my code is provided with NO
 WARRANTIES of any kind, so that I may have no fear of lawsuits from you. 
+
+This waiver/license applies to all of the code in the project as well as this 
+particular file.
