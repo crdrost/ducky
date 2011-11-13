@@ -5,6 +5,15 @@ Ducky is an implementation of lazy evaluation built into the callbacks of
 looks like conventional synchronous programming, even though Node.js provides
 asynchronous callback-based methods. 
 
+Most of Node.js could work this way if they guaranteed one simple fundamental
+equivalence called currying:
+
+    module.node_fn(args..., callback) <=> module.node_fn(args...)(callback)
+
+The only thing really added by Ducky to that simple equivalence is a special
+name given to `module.node_fn(args...)` -- namely a 'promise'. This allows 
+Ducky functions to detect promises and then "call them in". 
+
 ## Exploratory usage case
 
 Here's the sort of code that I aspire to write:
