@@ -1,5 +1,5 @@
-/* promises.js 
- * 
+/* promises.js
+ *
  * This file was authored by Chris Drost of drostie.org in the year 2011. To
  * the extent possible by all laws in all countries, I hereby waive all
  * copyright and any related rights under the Creative Commons Zero (CC0)
@@ -7,15 +7,17 @@
  *
  *     http://creativecommons.org/publicdomain/zero/1.0/legalcode
  *
- * This means that you may copy, distribute, modify, and use my code without 
+ * This means that you may copy, distribute, modify, and use my code without
  * any fear of lawsuits from me. It also means that my code is provided with NO
- * WARRANTIES of any kind, so that I may have no fear of lawsuits from you. 
+ * WARRANTIES of any kind, so that I may have no fear of lawsuits from you.
  */
 
 /* A `promise` is an object which embodies a promise to later asynchronously
  * compute something. This enables a sort of lazy evaluation designed to work
- * nicely with Node.js. 
+ * nicely with Node.js.
  */
+
+/*global exports */
 
 // scope declaration to consolidate "use strict" pragmas.
 (function () {
@@ -24,20 +26,20 @@
     function Promise(fn) {
         this.call_in = fn;
     }
-    
+
     /** low-level API **/
-    
+
     // finishing decoration for functions which can already be called promises.
     function promise(fn) {
         return new Promise(fn);
     }
-    
+
     // test if something actually is a promise.
     function is_promise(obj) {
         return obj instanceof Promise;
     }
-    
-    // This element of the low-level API will asynchronously evaluate `obj`, 
+
+    // This element of the low-level API will asynchronously evaluate `obj`,
     // which may or may not be a promise. Promises get called in, objects get
     // searched for promises, and anything else gets called back directly.
     // Either way, this is the proper way to handle something which might be,
@@ -49,12 +51,13 @@
             var done = 0,      // the number of promises which have called back
                 error = null,  // accumulated error message.
                 promises = []; // [parent, key] locations of promises
-            
+
             // Walk the object as a tree to discover any promises within.
             (function descend(d, cycle_check) {
+                var k;
                 if (cycle_check.indexOf(d) === -1) {
                     cycle_check.push(d);
-                    for (var k in d) {
+                    for (k in d) {
                         if (d.hasOwnProperty(k)) {
                             if (is_promise(d[k])) {
                                 promises.push([d, k]);
@@ -66,8 +69,8 @@
                     cycle_check.pop();
                 }
             }(obj, []));
-            
-            // Call in the promises we've collected. 
+
+            // Call in the promises we've collected.
             if (promises.length === 0) {
                 callback(null, obj);
             } else {
@@ -77,7 +80,7 @@
                         error = error || err;
                         parent[key] = data;
                         done += 1;
-                        if (done === tracking.length) {
+                        if (done === promises.length) {
                             callback(error, obj);
                         }
                     });
@@ -87,29 +90,29 @@
             callback(null, obj);
         }
     }
-    
-    
+
+
     /** higher-level API **/
 
-    
+
     /* This decorator makes an asynchronous function promise-aware: so that
      * `fn(params..., callback)` becomes `curried(fn)(params...)(callback)`.
      * There is only one essential difference: in the second case, if `params`
      * contains promises, they will be evaluated. This decorator preserves
      * `this` if `self` remains `undefined`. To be precise: if you say
-     * `lib = {f: curried(fn, self)};` and then `lib.f(params...)(callback)`, 
+     * `lib = {f: curried(fn, self)};` and then `lib.f(params...)(callback)`,
      * the `this` inside of `fn` is `self || lib`.
      */
     function curried(fn, self) {
         return function () {
-            var new_this = self || this, 
+            var new_this = self || this,
                 args = Array.prototype.slice.call(arguments, 0);
             return promise(function (callback) {
                 evaluate(args, function (err, evaluated_args) {
                     if (err) {
                         callback(err);
                     } else {
-                        fn.apply(self, evaluated_args.concat(callback));
+                        fn.apply(new_this, evaluated_args.concat(callback));
                     }
                 });
             });
@@ -117,7 +120,7 @@
     }
     /* This decorator makes a synchronous function promise-aware. While you
      * write `fn` with statements like `return` and `throw`, and assuming
-     * normal arguments, `lazy(fn)(args...)` creates a promise to evaluate 
+     * normal arguments, `lazy(fn)(args...)` creates a promise to evaluate
      * those arguments and callback(error, fn(args...)). The dynamics of `this`
      * and `self` are identical to their dynamics in `curried`.
      */
@@ -125,34 +128,36 @@
         return curried(function () {
             var args = Array.prototype.slice.call(arguments, 0),
                 callback = args.pop(),
-                fn_exception = false, out;
+                fn_exception = false,
+                out;
             try {
-                out = fn.apply(this, evaluated_args);
+                out = fn.apply(this, args);
             } catch (e) {
                 fn_exception = true;
                 callback(e);
             }
-            // I could also have put this in the try {}, saving two variable 
+            // I could also have put this in the try {}, saving two variable
             // declarations, but then the try{} would catch errors thrown by
             // callback and send them back to callback. o_O.
-            if (! fn_exception) {
+            if (!fn_exception) {
                 callback(null, out);
             }
         }, self);
-    };
-    
+    }
+
     /** precomputed functions **/
 
     var lib = {
         len: lazy(function (x) { return x.length; }),
         sum: lazy(function (x) {
-            for (var i = 0, out = 0; i < x.length; i += 1) {
+            var i, out = 0;
+            for (i = 0; i < x.length; i += 1) {
                 out += x[i];
             }
             return out;
-        }
+        })
     };
-    
+
     /** exported API **/
     (function () {
         var key, promises = {
