@@ -26,7 +26,7 @@
     function Promise(fn) {
         this.call_in = fn;
     }
-
+        
     /** low-level API **/
 
     // finishing decoration for functions which can already be called promises.
@@ -105,14 +105,16 @@
      */
     function curried(fn, self) {
         return function () {
-            var new_this = self || this,
-                args = Array.prototype.slice.call(arguments, 0);
+            var params = {
+                self: self || this,
+                args: Array.prototype.slice.call(arguments, 0)
+            };
             return promise(function (callback) {
-                evaluate(args, function (err, evaluated_args) {
+                evaluate(params, function (err, p) {
                     if (err) {
                         callback(err);
                     } else {
-                        fn.apply(new_this, evaluated_args.concat(callback));
+                        fn.apply(p.self, p.args.concat(callback));
                     }
                 });
             });
@@ -122,7 +124,9 @@
      * write `fn` with statements like `return` and `throw`, and assuming
      * normal arguments, `lazy(fn)(args...)` creates a promise to evaluate
      * those arguments and callback(error, fn(args...)). The dynamics of `this`
-     * and `self` are identical to their dynamics in `curried`.
+     * and `self` are identical to their dynamics in `curried`. Lazy does one
+     * thing which curried doesn't: if you return a promise from the function,
+     * it evaluates that too. 
      */
     function lazy(fn, self) {
         return curried(function () {
@@ -140,40 +144,148 @@
             // declarations, but then the try{} would catch errors thrown by
             // callback and send them back to callback. o_O.
             if (!fn_exception) {
-                callback(null, out);
+                evaluate(out, callback);
             }
         }, self);
     }
-
-    /** precomputed functions **/
-
-    var lib = {
-        len: lazy(function (x) { return x.length; }),
-        sum: lazy(function (x) {
-            var i, out = 0;
-            for (i = 0; i < x.length; i += 1) {
-                out += x[i];
+    // Operators allowed on Promises.
+    Promise.prototype = {
+        toString: function () {
+            throw new Error("Javascript operators are not lazy, use promise operators instead.");
+        },
+        get: lazy(function (property) {
+            return this[property];
+        }),
+        set: lazy(function (property, value) {
+            this[property] = value;
+            return this;
+        }),
+        eq:  lazy(function (that) {
+            return this === that;
+        }),
+        not_eq: lazy(function (opcode, that) {
+            return this !== that;
+        }),
+        then: function (then, or_else) {
+            var self = this;
+            return promise(function (callback) {
+                evaluate(self, function (err, data) {
+                    if (err) {
+                        callback(err);
+                    } else {
+                        if (data) {
+                            evaluate(then, callback);
+                        } else {
+                            evaluate(or_else, callback);
+                        }
+                    }
+                });
+            });
+        },
+        and: function () {
+            var self = this, args = arguments;
+            return promise(function (callback) {
+                function check_index(i) {
+                    // returns a callback which will check index i.
+                    return (i > args.length) ? callback : function (e, d) {
+                        if (e) {
+                            callback(e);
+                        } else if (d) {
+                            evaluate(args[i], function (err, data) {
+                                check_index(i + 1)(err, d && data);
+                            });
+                        } else {
+                            callback(null, d);
+                        }
+                    };
+                }
+                evaluate(self, check_index(0));
+            });
+        },
+        or: function () {
+            var self = this, args = arguments;
+            return promise(function (callback) {
+                function check_index(i) {
+                    // returns a callback which will check index i.
+                    return (i > args.length) ? callback : function (e, d) {
+                        if (e) {
+                            callback(e);
+                        } else if (!d) {
+                            evaluate(args[i], function (err, data) {
+                                check_index(i + 1)(err, d || data);
+                            });
+                        } else {
+                            callback(null, d);
+                        }
+                    };
+                }
+                evaluate(self, check_index(0));
+            });
+        },
+        plus: lazy(function () {
+            var sum = this, i;
+            for (i = 0; i < arguments.length; i += 1) {
+                sum += arguments[i];
             }
-            return out;
+            return sum;
+        }),
+        minus: lazy(function () {
+            var sum = this, i;
+            for (i = 0; i < arguments.length; i += 1) {
+                sum -= arguments[i];
+            }
+            return sum;
+        }),
+        times: lazy(function () {
+            var prod = this, i;
+            for (i = 0; i < arguments.length; i += 1) {
+                prod *= arguments[i];
+            }
+            return prod;
+        }),
+        over: lazy(function () {
+            var prod = this, i;
+            for (i = 0; i < arguments.length; i += 1) {
+                prod /= arguments[i];
+            }
+            return prod;
+        }),
+        call: lazy(function (fn) {
+            var params = Array.prototype.slice.call(arguments, 1);
+            if (typeof fn === "string") {
+                return this[fn].apply(this, params);
+            } else {
+                return fn.apply(this, params);
+            }
+        }),
+        not: lazy(function () {
+            return ! this;
+        }),
+        gt: lazy(function (that) {
+            return this > that;
+        }),
+        lt: lazy(function (that) {
+            return this < that;
+        }),
+        ge: lazy(function (that) {
+            return this >= that;
+        }),
+        le: lazy(function (that) {
+            return this <= that;
         })
     };
-
+    
     /** exported API **/
-    (function () {
-        var key, promises = {
-            base: {
-                promise: promise,
-                is_promise: is_promise,
-                evaluate: evaluate
-            },
-            lazy: lazy,
-            curried: curried,
-            lib: lib
-        };
-        for (key in promises) {
-            if (promises.hasOwnProperty(key)) {
-                exports[key] = promises[key];
-            }
+    exports.promise = promise;
+    exports.is_promise = is_promise;
+    exports.evaluate = evaluate;
+    exports.lazy = lazy;
+    exports.curried = curried;
+    exports.add = lazy(function () {
+        var s = arguments[0], i;
+        for (i = 1; i < arguments.length; i += 1) {
+            s += arguments[i];
         }
-    }());
+        return s;
+    });
 }());
